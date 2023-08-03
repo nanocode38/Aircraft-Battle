@@ -3,9 +3,6 @@
 import os
 import random
 import sys
-from time import sleep
-from tkinter import Tk
-import tkinter
 import random as rd
 import pickle
 
@@ -15,7 +12,7 @@ from pyhelper.pgwidgets import TextButton as Button
 from pyhelper.pgwidgets import TextButtonConfig as ButtonConfig
 from pyhelper.pghelper import BackgroundSound
 from pyhelper.TKhelper import tkmessagebox
-from pyhelper.gamehelper import Timer
+from pyhelper.gamehelper import Timer, game_help_window
 
 from settings import Settings
 from ship import Ship
@@ -111,7 +108,7 @@ class Game:
         button_config.text = 'Help'
         button_config.font = 'Console'
         self.help_button = Button(button_config)
-        self.help_button.rect.centerx = self.screen_rect.centery
+        self.help_button.rect.centerx = self.screen_rect.centerx
         self.help_button.rect.bottom = self.screen_rect.bottom - 18
         self.music_is_playing = True
         self.music_button = SoundButton(self.screen, self.music_is_playing)
@@ -255,22 +252,7 @@ class Game:
         help_text += "4.敌机速度将随时间流逝越来越快。\n"
         help_text += "5.每击中一枪就加分，每枪分数、飞船速度和子弹速度也会随时间加快。\n"
         help_text += "6.按空格键开启或关闭背景音乐。\n"
-
-        tk = Tk()
-        tk.title("Game Help")
-        tk.resizable(0, 0)
-        tk.wm_attributes("-topmost", 1)
-        canvas = tkinter.Canvas(tk, width=700, height=500, bd=0, highlightthickness=0)
-        canvas.pack()
-        canvas.create_text(250, 70, text=help_text, fill="blue")
-        tk.update_idletasks()
-        tk.update()
-
-        def on_close_window():
-            tk.destroy()
-
-        tk.protocol("WM_DELETE_WINDOW", on_close_window)
-        tk.mainloop()
+        game_help_window(help_text)
 
     def _check_music_button_button(self, mouse_x, mouse_y):
         """响应按下music_button"""
