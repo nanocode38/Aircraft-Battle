@@ -4,15 +4,18 @@ import os
 import random
 import sys
 from time import sleep
-from tkinter import *
+from tkinter import Tk
+import tkinter
 import random as rd
 import pickle
 
 import pygame
-from pyhelper import RGB10Color as Color
-from pyhelper.pgwidgets import CustomButton, CustomButtonConfig
-import win32api
-import win32con
+from pyhelper import RGBColor as Color
+from pyhelper.pgwidgets import TextButton as Button
+from pyhelper.pgwidgets import TextButtonConfig as ButtonConfig
+from pyhelper.pghelper import BackgroundSound
+from pyhelper.TKhelper import tkmessagebox
+from pyhelper.gamehelper import Timer
 
 from settings import Settings
 from ship import Ship
@@ -20,7 +23,6 @@ from bullet import Bullet
 from plane import Plane
 from game_stats import GameStats
 from images import GameOverImage, Boom, SoundButton
-from button import Button
 from scoreboard import Scoreboard
 
 
@@ -29,10 +31,13 @@ class Game:
 
     def __init__(self):
         """初始化游戏,创建游戏资源"""
+
         os.system("cls")
         pygame.init()
         pygame.mixer.init()
         self.settings = Settings()
+
+        self._game_over_time = False
 
         self.screen = pygame.display.set_mode((0, 0), pygame.FULLSCREEN)
         self.settings.screen_width = self.screen.get_rect().width
@@ -42,17 +47,57 @@ class Game:
         icon = pygame.image.load("..\\resources\\images\\Logo.png")
         pygame.display.set_icon(icon)
 
-        self.time = 0
         self.main_clock = pygame.time.Clock()
+        button_config = ButtonConfig(self.screen)
+        button_config.set_config('width', 200)
+        button_config.set_config('height', 50)
+        # 字体对照
+        # 新细明体：PMingLiU
+        # 细明体：MingLiU
+        # 标楷体：DFKai - SB
+        # 黑体：SimHei
+        # 宋体：SimSun
+        # 新宋体：NSimSun
+        # 仿宋：FangSong
+        # 楷体：KaiTi
+        # 仿宋：GB2312：FangSong_GB2312
+        # 楷体：GB2312：KaiTi_GB2312
+        # 微软正黑体：Microsoft JhengHei
+        # 微软雅黑体：Microsoft YaHei
+        button_config.font = 'KaiTi'
+        button_config.button_color = [Color.LineGreen, ]
+        button_config.text = '简单模式'
+        easy_button = Button(button_config)
+        easy_button.rect.center = self.screen_rect.center
+        easy_button.rect.y += -90
+
+        button_config.button_color = [Color.Blue, ]
+        button_config.text = '普通模式'
+        med_button = Button(button_config)
+        med_button.rect.center = self.screen_rect.center
+        med_button.rect.y += -30
+
+        button_config.button_color = [(255, 255, 0), ]
+        button_config.text = '困难模式'
+        diff_button = Button(button_config)
+        diff_button.rect.center = self.screen_rect.center
+        diff_button.rect.y += +30
+
+        button_config.button_color = [Color.Red, ]
+        button_config.text = '地狱模式'
+        hell_button = Button(button_config)
+        hell_button.rect.center = self.screen_rect.center
+        hell_button.rect.y += +90
 
 
         self.play_buttons = {
-            "easy": Button(self.screen, "简单模式", -90, (0, 255, 0)),
-            "medium": Button(self.screen, "中等模式", -30, (0, 0, 255)),
-            "diff": Button(self.screen, "困难模式", +30, (255, 255, 0)),
-            "sdiff": Button(self.screen, "地狱模式", +90, (255, 0, 0)),
+            "easy": easy_button,
+            "medium": med_button,
+            "diff": diff_button,
+            "sdiff": hell_button,
         }
         self.mode = "easy"
+        self.timer = Timer()
         self.ship = Ship(self.settings, self.screen)
         self.boom = Boom(self.screen, self.ship)
         self.planes = pygame.sprite.Group()
@@ -60,13 +105,16 @@ class Game:
         self.stats = GameStats(self.settings)
         self.sb = Scoreboard(self.settings, self.screen, self.stats)
         self.game_over_text = GameOverImage(self.screen)
-        self.help_button = Button(
-            self.screen, "Help", 300, (100, 233, 255), "Console"
-        )
+        button_config.button_color = [(100, 233, 255),]
+        button_config.text = 'Help'
+        button_config.font = 'Console'
+        self.help_button = Button(button_config)
+        self.help_button.rect.centerx = self.screen_rect.centery
+        self.help_button.rect.bottom = self.screen_rect.bottom - 18
         self.music_is_playing = True
         self.music_button = SoundButton(self.screen, self.music_is_playing)
-        pygame.mixer.music.load("..\\resources\\sounds\\background.mid")
-        pygame.mixer.music.play(-1, 0.0)
+        self.music = BackgroundSound("..\\resources\\sounds\\background.mid")
+        self.music.play()
 
     def run_game(self):
         """开始游戏主循环"""
@@ -77,6 +125,9 @@ class Game:
                 random.randint(10, self.settings.screen_width - 10),
                 random.randint(5, self.settings.screen_height - 5))
             starts_point.append(rect)
+        self.timer.start()
+
+
         while True:
             self._draw_screen(len_starts, starts_point)
             self._check_events()
@@ -85,10 +136,14 @@ class Game:
                 self._add_planes()
                 self._update_planes()
                 self._update_bullets()
+
             self._update_screen()
             self._check_anythins()
             self.main_clock.tick(self.settings.FPS)
 
+
+    def _get_time(self):
+        return round(self.timer.get_time(10) * self.settings.FPS, 0)
 
     def _draw_screen(self, len_starts, starts_point):
         starts = pygame.image.load(
@@ -103,11 +158,11 @@ class Game:
 
     def _exit(self):
         """退出游戏"""
-        sl = win32api.MessageBox(0, "确定退出游戏吗？", "退出确认", win32con.MB_OKCANCEL)
+        sl = tkmessagebox('askyesno', '退出确认', '真的要退出游戏吗?')
         if sl == 1:
             with open("score.dat", "wb") as f:
                 pickle.dump(self.stats.high_score, f)
-            sys.exit()
+            sys.exit(0)
 
     #!事件！
     #!事件！
@@ -116,17 +171,16 @@ class Game:
     def _check_events(self):
         """响应按键和鼠标事件"""
         for event in pygame.event.get():
+            self._check_play_button(event)
+            self._check_help_button(event)
             if event.type == pygame.QUIT:
                 self._exit()
             elif event.type == pygame.KEYDOWN:
                 self._check_keydown_events(event)
             elif event.type == pygame.KEYUP:
                 self._check_keyup_events(event)
-            if event.type == pygame.MOUSEBUTTONDOWN:
-                mouse_x, mouse_y = pygame.mouse.get_pos()
-                self._check_play_button(mouse_x, mouse_y)
-                self._check_help_button(mouse_x, mouse_y)
-                self._check_music_button_button(mouse_x, mouse_y)
+            if event.type == pygame.MOUSEBUTTONUP:
+                self._check_music_button_button(*event.pos)
 
     def _check_keydown_events(self, event):
         """响应按键"""
@@ -138,9 +192,9 @@ class Game:
             self._exit()
         if event.key == pygame.K_SPACE:
             if self.music_is_playing:
-                pygame.mixer.music.stop()
+                self.music.stop()
             else:
-                pygame.mixer.music.play(-1, 0.0)
+                self.music.play()
             self.music_is_playing = not self.music_is_playing
 
     def _check_keyup_events(self, event):
@@ -150,19 +204,19 @@ class Game:
         elif event.key == pygame.K_DOWN:
             self.ship.moving_down = False
 
-    def _check_play_button(self, mouse_x, mouse_y):
+    def _check_play_button(self, event):
         """检查是否点击Play按钮并作出响应"""
-        if self.play_buttons["easy"].rect.collidepoint(mouse_x, mouse_y):
+        if not self.stats.is_gameover:
+            return
+        if self.play_buttons["easy"].update(event):
             self.mode = "easy"
-        elif self.play_buttons["medium"].rect.collidepoint(mouse_x, mouse_y):
+        elif self.play_buttons["medium"].update(event):
             self.mode = "medium"
-        elif self.play_buttons["diff"].rect.collidepoint(mouse_x, mouse_y):
+        elif self.play_buttons["diff"].update(event):
             self.mode = "diff"
-        elif self.play_buttons["sdiff"].rect.collidepoint(mouse_x, mouse_y):
+        elif self.play_buttons["sdiff"].update(event):
             self.mode = "sdiff"
         else:
-            return
-        if not self.stats.is_gameover:
             return
 
         # 重置游戏统计信息
@@ -183,9 +237,9 @@ class Game:
         # 重置游戏速度设置
         self.settings.init_dynamic_settings()
  
-    def _check_help_button(self, mouse_x, mouse_y):
+    def _check_help_button(self, event):
         """检查是否点击Help按钮并作出响应"""
-        if not self.help_button.rect.collidepoint(mouse_x, mouse_y):
+        if not self.help_button.update(event):
             return
         if not self.stats.is_gameover:
             return
@@ -201,7 +255,7 @@ class Game:
         tk.title("Game Help")
         tk.resizable(0, 0)
         tk.wm_attributes("-topmost", 1)
-        canvas = Canvas(tk, width=700, height=500, bd=0, highlightthickness=0)
+        canvas = tkinter.Canvas(tk, width=700, height=500, bd=0, highlightthickness=0)
         canvas.pack()
         canvas.create_text(250, 70, text=help_text, fill="blue")
         tk.update_idletasks()
@@ -218,9 +272,9 @@ class Game:
         if not self.music_button.rect.collidepoint(mouse_x, mouse_y):
             return
         if self.music_is_playing:
-            pygame.mixer.music.stop()
+            self.music.stop()
         else:
-            pygame.mixer.music.play(-1, 0.0)
+            self.music.play()
         self.music_is_playing = not self.music_is_playing
 
     def _check_bullet_plane_collisions(self):
@@ -249,7 +303,7 @@ class Game:
     #!子弹
     def _automatic_firing(self):
         """⏲计时并自动发射子弹"""
-        if self.time % self.settings.bulletFiringRate == 0:
+        if self._get_time() % self.settings.bulletFiringRate == 0:
             new_bullet = Bullet(
                 self.settings, self.screen, self.ship, self.mode
             )
@@ -263,7 +317,7 @@ class Game:
     def _add_planes(self):
         """⏲计时并自动创建敌机"""
         if (
-            self.time % rd.randint(
+            self._get_time() % rd.randint(
                 self.settings.aircraft_creation_rate_min[self.mode],
                 self.settings.aircraft_creation_rate_max[self.mode],)== 0):
             new_plane = Plane(
@@ -282,7 +336,7 @@ class Game:
         self.settings.shiphitsound.play()
         a = False
         if self.music_is_playing:
-            pygame.mixer.music.stop()
+            self.music.stop()
             a = True
         self.ship.is_hidden = True
         self.boom.is_hidden = False
@@ -301,8 +355,7 @@ class Game:
         pygame.display.flip()
         sleep(3)
         if a:
-            pygame.mixer.music.play(-1, 0.0)
-
+            self.music.play()
     #!更新
     #!更新
     #!更新
@@ -348,23 +401,25 @@ class Game:
         self.sb.show_score()
         self.game_over_text.draw()
         if self.stats.is_gameover:
-            for key in self.play_buttons.keys():
-                self.play_buttons[key].draw()
-            self.help_button.draw()
+            if not self._game_over_time:
+                for key in self.play_buttons.keys():
+                    self.play_buttons[key].draw()
+                self.help_button.draw()
         self.music_button.draw()
         pygame.display.flip()
 
     def _check_anythins(self):
         """每次循环都要检查的事项"""
-        self.time += 1
+        self.timer.update()
         self.music_button.musicisplaying = self.music_is_playing
-        if self.time % (20 * 100) == 0:
+        if self._get_time() % (20 * 100) == 0:
             self.settings.increase_speed()
 
 
 
 def check_high_score(stats, sb):
     """检查是否诞生了最高得分"""
+
     if stats.score > stats.high_score:
         stats.high_score = stats.score
         sb.prep_high_score()
