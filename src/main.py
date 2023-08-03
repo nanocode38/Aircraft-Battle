@@ -31,13 +31,15 @@ class Game:
 
     def __init__(self):
         """初始化游戏,创建游戏资源"""
-
         os.system("cls")
         pygame.init()
         pygame.mixer.init()
         self.settings = Settings()
 
         self._game_over_time = False
+        self._next_time = 0
+        self.is_one_game_over = True
+        self.music_is_playing_back = True
 
         self.screen = pygame.display.set_mode((0, 0), pygame.FULLSCREEN)
         self.settings.screen_width = self.screen.get_rect().width
@@ -129,15 +131,16 @@ class Game:
 
 
         while True:
-            self._draw_screen(len_starts, starts_point)
+            if not self._game_over_time:
+                self._draw_screen(len_starts, starts_point)
             self._check_events()
             if not self.stats.is_gameover:
                 self.ship.update()
                 self._add_planes()
                 self._update_planes()
                 self._update_bullets()
-
-            self._update_screen()
+            if not self._game_over_time:
+                self._update_screen()
             self._check_anythins()
             self.main_clock.tick(self.settings.FPS)
 
@@ -206,6 +209,8 @@ class Game:
 
     def _check_play_button(self, event):
         """检查是否点击Play按钮并作出响应"""
+        if self._game_over_time:
+            return
         if not self.stats.is_gameover:
             return
         if self.play_buttons["easy"].update(event):
@@ -334,10 +339,10 @@ class Game:
         """响应游戏结束"""
         self.stats.is_gameover = True
         self.settings.shiphitsound.play()
-        a = False
+        self.music_is_playing_back = False
         if self.music_is_playing:
             self.music.stop()
-            a = True
+            self.music_is_playing_back = True
         self.ship.is_hidden = True
         self.boom.is_hidden = False
         self.boom.draw()
@@ -345,17 +350,8 @@ class Game:
             bul.draw_bullet()
         self.sb.show_score()
         pygame.display.flip()
-        sleep(8)
-        self.settings.gameoversound1.play()
-        self.settings.gameoversound2.play()
-        self.game_over_text.hidden = False
-        self.game_over_text.draw()
-        self.sb.prep_high_score()
-        self.sb.prep_score()
-        pygame.display.flip()
-        sleep(3)
-        if a:
-            self.music.play()
+        self._game_over_time = True
+        self._next_time = self._get_time() + 8 * self.settings.FPS
     #!更新
     #!更新
     #!更新
@@ -388,7 +384,7 @@ class Game:
             if bullet.rect.left <= 0:
                 self.bullets.remove(bullet)
 
-    def  _update_screen(self):
+    def _update_screen(self):
         """使最近绘制的屏幕可见"""
         for bullet in self.bullets.sprites():
             bullet.draw_bullet()
@@ -414,6 +410,23 @@ class Game:
         self.music_button.musicisplaying = self.music_is_playing
         if self._get_time() % (20 * 100) == 0:
             self.settings.increase_speed()
+        if self._game_over_time and self._get_time() >= self._next_time:
+            if self.is_one_game_over:
+                print("as")
+                self._next_time += 3 * 60
+                self.settings.gameoversound1.play()
+                self.settings.gameoversound2.play()
+                self.game_over_text.hidden = False
+                self.game_over_text.draw()
+                self.sb.prep_high_score()
+                self.sb.prep_score()
+                self.is_one_game_over = False
+                pygame.display.update()
+            else:
+                self._game_over_time = False
+                if self.music_is_playing_back:
+                    self.music.play()
+                self.is_one_game_over = True
 
 
 
